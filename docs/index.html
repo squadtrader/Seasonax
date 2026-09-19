@@ -3,314 +3,522 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Saisonnalité des devises majeures</title>
+<title>Saisonnalité des devises</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{
-  --bg:#EDF0F3; --ink:#101A2B; --muted:#5A667A; --line:#D3D9E2;
-  --up:#12805C; --down:#C23B34; --focus:#2B5FD9;
-}
-*{box-sizing:border-box}
-html{background:var(--bg)}
-body{
-  margin:0; color:var(--ink); background:var(--bg);
-  font-family:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  font-size:16px; line-height:1.5; font-variant-numeric:tabular-nums;
-}
-.wrap{max-width:1120px; margin:0 auto; padding:0 20px}
-:focus-visible{outline:3px solid var(--focus); outline-offset:2px}
+  :root {
+    --bg: #E8EDF0;
+    --panel: #FFFFFF;
+    --ink: #0F1C2E;
+    --muted: #5A6878;
+    --line: #D3DBE1;
+    --up: #0A7B5F;
+    --down: #BF3A30;
+    --focus: #2557D6;
+    --font: "Schibsted Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0D1520;
+      --panel: #152130;
+      --ink: #E6EDF4;
+      --muted: #93A3B4;
+      --line: #26364A;
+      --up: #3CC79E;
+      --down: #F0695E;
+      --focus: #7AA2FF;
+    }
+  }
 
-header{padding:44px 0 8px}
-h1{
-  font-size:clamp(2.1rem,5.4vw,3.6rem); line-height:1.02; font-weight:700;
-  letter-spacing:-.025em; margin:0 0 10px; max-width:16ch;
-}
-.updated{margin:0; color:var(--muted)}
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 16px/1.5 var(--font);
+    font-variant-numeric: tabular-nums;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 20px 56px; }
 
-.pairs{display:flex; flex-wrap:wrap; gap:8px; margin:28px 0 14px}
-.pairs button{
-  font:inherit; font-weight:600; padding:10px 18px; cursor:pointer;
-  border:1.5px solid var(--ink); background:transparent; color:var(--ink);
-  border-radius:999px;
-}
-.pairs button:hover{background:rgba(16,26,43,.07)}
-.pairs button[aria-pressed="true"]{background:var(--ink); color:#fff}
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
 
-.facts{margin:0 0 18px; color:var(--muted); max-width:70ch}
+  /* En-tête */
+  .top { display: flex; flex-wrap: wrap; gap: 12px 32px; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; }
+  h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.4rem); line-height: 1.1; letter-spacing: -0.02em; font-weight: 700; }
+  .sub { margin: 8px 0 0; color: var(--muted); max-width: 46ch; }
+  .fresh { margin: 0; color: var(--muted); font-size: 0.9rem; text-align: right; }
+  .fresh strong { color: var(--ink); font-weight: 600; }
 
-.toolbar{display:flex; flex-wrap:wrap; gap:12px 28px; align-items:center; margin-bottom:8px}
-.metric{display:flex; gap:20px}
-.metric button{
-  font:inherit; font-weight:600; padding:4px 0; cursor:pointer; color:var(--muted);
-  background:none; border:0; border-bottom:2.5px solid transparent;
-}
-.metric button[aria-pressed="true"]{color:var(--ink); border-bottom-color:var(--ink)}
-nav.jump{display:flex; flex-wrap:wrap; gap:6px 18px}
-nav.jump a{color:var(--ink); text-underline-offset:3px}
+  /* Sélecteur de paires */
+  .pairs { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 10px; margin: 0 -2px 8px; scrollbar-width: thin; }
+  .pairs button {
+    flex: 0 0 auto;
+    font: 600 1rem var(--font);
+    letter-spacing: 0.01em;
+    padding: 10px 18px;
+    border: 1.5px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .pairs button:hover { border-color: var(--ink); }
+  .pairs button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--panel); }
 
-section{border-top:1.5px solid var(--ink); padding:30px 0 44px; margin-top:24px}
-.head h2{font-size:1.7rem; line-height:1.15; letter-spacing:-.015em; margin:0 0 6px}
-.head p{margin:0 0 22px; color:var(--muted); max-width:64ch}
-.body{display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:36px; align-items:start}
-@media (max-width:840px){.body{grid-template-columns:1fr; gap:24px}}
+  /* Résumé de la paire */
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; margin: 12px 0 28px; border-top: 1.5px solid var(--ink); }
+  .summary div { padding: 12px 16px 4px 0; }
+  .summary dt { color: var(--muted); font-size: 0.85rem; }
+  .summary dd { margin: 2px 0 0; font-size: 1.25rem; font-weight: 600; }
+  .summary dd small { font-size: 0.85rem; font-weight: 400; color: var(--muted); }
 
-figure{margin:0}
-figcaption{margin-top:8px; font-size:.85rem; color:var(--muted)}
-svg.chart{width:100%; height:auto; display:block}
-svg.chart text{font-family:inherit; font-size:11px; fill:var(--muted)}
-svg.chart text.val{fill:var(--ink); font-weight:600}
-svg.chart .grid{stroke:var(--line); stroke-width:1}
-svg.chart .base{stroke:var(--ink); stroke-width:1.5}
-svg.chart rect.up{fill:var(--up)}
-svg.chart rect.down{fill:var(--down)}
-svg.chart rect.dim{opacity:.38}
+  /* Onglets */
+  .controls { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .tabs, .seg { display: inline-flex; background: var(--panel); border: 1.5px solid var(--line); border-radius: 10px; padding: 3px; gap: 2px; max-width: 100%; overflow-x: auto; }
+  .tabs button, .seg button {
+    font: 500 0.95rem var(--font);
+    padding: 8px 14px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    border-radius: 7px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tabs button:hover, .seg button:hover { color: var(--ink); }
+  .tabs button[aria-selected="true"], .seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); font-weight: 600; }
+  .seg-wrap { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.9rem; }
+  .seg-wrap[hidden] { display: none; }
 
-.tablewrap{overflow-x:auto}
-table{border-collapse:collapse; width:100%; font-size:.94rem}
-th{
-  font-weight:600; font-size:.82rem; color:var(--muted); text-align:right;
-  padding:6px 8px; border-bottom:1.5px solid var(--ink);
-}
-td{padding:7px 8px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap}
-th:first-child,td:first-child{text-align:left}
-td:first-child{font-weight:600}
-td.low{color:var(--muted)}
-.tag{font-weight:400; color:var(--muted); font-size:.82rem}
+  /* Panneaux */
+  .panel { background: var(--panel); border: 1.5px solid var(--line); border-radius: 14px; padding: 24px; margin-bottom: 20px; }
+  .panel h2 { margin: 0 0 4px; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
+  .panel .lede { margin: 0 0 20px; color: var(--muted); max-width: 70ch; }
+  .reading { margin: 20px 0 0; padding-top: 16px; border-top: 1px solid var(--line); }
+  .reading p { margin: 0; max-width: 75ch; }
 
-.heatblock{margin-top:44px}
-.heatblock h3{font-size:1.25rem; margin:0 0 4px; letter-spacing:-.01em}
-.heatblock p{margin:0 0 14px; color:var(--muted); max-width:64ch}
-table.heat{min-width:680px; font-size:.8rem}
-table.heat th,table.heat td{text-align:center; padding:6px 4px}
-table.heat th:first-child,table.heat td:first-child{text-align:left; padding-left:8px}
-table.heat tr.sum td{border-top:1.5px solid var(--ink); font-weight:600}
-table.heat tr.sum td:first-child{font-weight:700}
+  /* Graphique en barres */
+  .chart { --gap: 6px; }
+  .chart.dense { --gap: 3px; }
+  .plot { position: relative; height: 240px; margin: 22px 0 28px; }
+  .plot .cols { position: absolute; inset: 0; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: var(--gap); }
+  .plot .col { position: relative; height: 100%; }
+  .zero { position: absolute; left: 0; right: 0; height: 0; border-top: 1.5px solid var(--ink); opacity: 0.55; pointer-events: none; }
+  .bar { position: absolute; left: 12%; right: 12%; min-height: 2px; border-radius: 3px; }
+  .bar.up { background: var(--up); }
+  .bar.down { background: var(--down); }
+  .bar.dim { opacity: 0.45; }
+  .val { position: absolute; left: 50%; transform: translateX(-50%); font-size: 0.78rem; font-weight: 600; white-space: nowrap; }
+  .val.up { color: var(--up); }
+  .val.down { color: var(--down); }
+  .xlabels { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: var(--gap); text-align: center; font-size: 0.82rem; color: var(--muted); }
+  .xlabels span { overflow: hidden; }
+  .xlabels small { display: block; font-size: 0.72rem; opacity: 0.85; }
 
-.notice{padding:28px 0; max-width:64ch}
-.notice strong{display:block; font-size:1.1rem; margin-bottom:4px}
-footer{border-top:1.5px solid var(--ink); padding:22px 0 56px; color:var(--muted); font-size:.9rem}
-footer p{max-width:72ch; margin:0 0 8px}
+  /* Tableaux */
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+  th, td { padding: 10px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; padding-left: 0; }
+  th { font-weight: 500; color: var(--muted); font-size: 0.85rem; border-bottom: 1.5px solid var(--ink); }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.up { color: var(--up); font-weight: 600; }
+  td.down { color: var(--down); font-weight: 600; }
+  tr.thin td { color: var(--muted); }
+  tr.thin td.up, tr.thin td.down { opacity: 0.7; }
+  .tag { display: inline-block; margin-left: 8px; padding: 1px 8px; font-size: 0.75rem; font-weight: 500; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
+  .meter { display: inline-block; position: relative; width: 56px; height: 6px; margin-left: 10px; background: var(--line); border-radius: 3px; vertical-align: middle; }
+  .meter i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
+  .meter i.up { background: var(--up); }
+  .meter i.down { background: var(--down); }
+  .meter b { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1.5px; background: var(--ink); opacity: 0.6; }
+
+  /* Carte de chaleur */
+  .heat table { font-size: 0.8rem; }
+  .heat th, .heat td { padding: 0; text-align: center; border: 0; }
+  .heat th { padding: 0 2px 6px; }
+  .heat th:first-child, .heat td:first-child { text-align: left; padding-right: 10px; color: var(--muted); font-weight: 500; }
+  .heat td.cell { min-width: 46px; height: 30px; border: 2px solid var(--panel); border-radius: 5px; color: var(--ink); }
+  .heat td.cell.empty { background: transparent; }
+  .heat tr.avg td { padding-top: 6px; }
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; color: var(--muted); font-size: 0.85rem; }
+  .legend .sw { width: 60px; height: 10px; border-radius: 5px; }
+  .legend .sw.d { background: linear-gradient(90deg, color-mix(in srgb, var(--down) 80%, var(--panel)), var(--panel)); }
+  .legend .sw.u { background: linear-gradient(90deg, var(--panel), color-mix(in srgb, var(--up) 80%, var(--panel))); }
+  .legend .sw { border: 1px solid var(--line); }
+
+  /* Messages */
+  .notice { background: var(--panel); border: 1.5px solid var(--line); border-radius: 14px; padding: 24px; }
+  .notice h2 { margin: 0 0 8px; font-size: 1.15rem; }
+  .notice p { margin: 0 0 8px; max-width: 65ch; }
+  .notice code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font-size: 0.9em; }
+
+  footer { margin-top: 28px; color: var(--muted); font-size: 0.85rem; max-width: 80ch; }
+  footer p { margin: 0 0 8px; }
+
+  @media (max-width: 600px) {
+    .wrap { padding: 24px 14px 40px; }
+    .panel { padding: 16px; }
+    .fresh { text-align: left; }
+    .plot { height: 200px; }
+    .val { font-size: 0.7rem; }
+  }
+  @media print { .pairs, .controls { display: none; } }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>Saisonnalité des devises majeures</h1>
-    <p class="updated" id="updated">Chargement des données…</p>
+  <header class="top">
+    <div>
+      <h1>Saisonnalité des devises</h1>
+      <p class="sub">Les 7 paires majeures, analysées par année, par mois, par semaine du mois et par jour de la semaine.</p>
+    </div>
+    <p class="fresh" id="fresh" aria-live="polite">Chargement des données…</p>
   </header>
 
-  <div class="pairs" id="pairs" role="group" aria-label="Choisir une paire"></div>
-  <p class="facts" id="facts"></p>
+  <nav class="pairs" id="pairs" aria-label="Paire de devises"></nav>
+  <dl class="summary" id="summary"></dl>
 
-  <div class="toolbar" id="toolbar" hidden>
-    <div class="metric" role="group" aria-label="Valeur affichée dans les graphiques">
-      <button type="button" data-metric="mean" aria-pressed="true">Variation moyenne</button>
-      <button type="button" data-metric="pct_up" aria-pressed="false">Taux haussier</button>
+  <div class="controls" id="controls" hidden>
+    <div class="tabs" role="tablist" aria-label="Découpage de la période" id="tabs"></div>
+    <div class="seg-wrap" id="metricWrap">
+      <span id="metricLabel">Graphique</span>
+      <div class="seg" role="group" aria-labelledby="metricLabel" id="metric"></div>
     </div>
-    <nav class="jump" aria-label="Aller à une section">
-      <a href="#annee">Année</a>
-      <a href="#mois">Mois</a>
-      <a href="#semaine">Semaine du mois</a>
-      <a href="#jour">Jour de la semaine</a>
-    </nav>
   </div>
 
-  <main id="app"></main>
+  <main id="view"></main>
 
-  <footer id="footer" hidden>
-    <p>Chaque variation est calculée sur les clôtures journalières de Yahoo Finance. Les mois et semaines en cours ne sont jamais comptés.</p>
-    <p>Semaine du mois : la semaine 1 couvre les jours 1 à 7, la 2 les jours 8 à 14, et ainsi de suite. La semaine 5 (jours 29 à 31) est courte.</p>
-    <p>Ce sont des statistiques sur le passé, pas une prévision. Avec environ vingt observations par mois, un écart de quelques dixièmes de pourcent peut très bien être du hasard.</p>
+  <footer>
+    <p>Lecture : pour une paire comme EUR/USD, une hausse signifie que l'euro gagne du terrain face au dollar. Pour USD/JPY, une hausse signifie que le dollar gagne face au yen.</p>
+    <p>Les variations sont calculées sur les cours de clôture journaliers et cumulées sur la période. La première et la dernière période, si elles sont incomplètes, sont écartées des moyennes mensuelles et hebdomadaires. Un résultat basé sur peu d'observations peut relever du hasard : regardez toujours la colonne « Obs. ». Les performances passées ne garantissent pas les performances futures.</p>
+    <p id="source"></p>
   </footer>
 </div>
 
 <script>
-const MONTHS = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
-const DAYS = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi"];
-const WEEKS = ["Semaine 1 (jours 1–7)","Semaine 2 (jours 8–14)","Semaine 3 (jours 15–21)","Semaine 4 (jours 22–28)","Semaine 5 (jours 29–31)"];
-const LOW_N = 15;
+"use strict";
 
-let DATA = null, current = null, metric = "mean";
+const TABS = [
+  { id: "annee",   label: "Par année" },
+  { id: "mois",    label: "Par mois" },
+  { id: "semaine", label: "Par semaine du mois" },
+  { id: "jour",    label: "Par jour de la semaine" },
+];
+const METRICS = [
+  { id: "mean",   label: "Moyenne" },
+  { id: "median", label: "Médiane" },
+];
+const MONTH_SHORT = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
+const WEEKDAY_SHORT = ["Lun", "Mar", "Mer", "Jeu", "Ven"];
+const THIN = 15; // en dessous de ce nombre d'observations, on signale un échantillon faible
 
-const $ = s => document.querySelector(s);
-const nf = (v, d = 2) => Math.abs(v).toFixed(d).replace(".", ",");
-const sg = (v, d = 2) => v == null ? "–" : (v > 0 ? "+" : v < 0 ? "−" : "") + nf(v, d);
-const pct = (v, d = 2) => v == null ? "–" : sg(v, d) + "\u202f%";
-const dateFr = iso => new Date(iso + "T00:00:00Z")
-  .toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const state = { data: null, pair: null, tab: "annee", metric: "mean" };
+const $ = (id) => document.getElementById(id);
 
-function tint(v, scale, center = 0) {
-  if (v == null || scale === 0) return "";
-  const x = (v - center) / scale, a = Math.min(1, Math.abs(x));
-  if (a === 0) return "";
-  const c = x >= 0 ? "18,128,92" : "194,59,52";
-  return `background:rgba(${c},${(0.06 + 0.34 * a).toFixed(2)})`;
+/* ---------- Utilitaires d'affichage ---------- */
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const nf = (v, d) => Math.abs(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const NBSP = "\u202f";
+function pct(v, d = 2) {
+  if (v == null) return "–";
+  const zero = Number(v.toFixed(d)) === 0; // "-0,00 %" n'a pas de sens : on affiche 0,00 %
+  const sign = zero ? "" : v > 0 ? "+" : "\u2212";
+  return sign + nf(v, d) + NBSP + "%";
+}
+const plain = (v, d = 1) => (v == null ? "–" : nf(v, d) + NBSP + "%");
+const cls = (v) => (v == null || v === 0 ? "" : v > 0 ? "up" : "down");
+const fmtDate = (iso) => new Date(iso + "T00:00:00Z").toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+const fmtInt = (n) => n.toLocaleString("fr-FR");
+
+
+/* ---------- Compatibilité : accepte le format "by_year / by_month / ..." et le format complet ---------- */
+const MONTH_NAMES = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+const WEEKDAY_NAMES = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
+const WEEK_RANGES = ["jours 1 à 7", "jours 8 à 14", "jours 15 à 21", "jours 22 à 28", "jours 29 à 31"];
+
+function statsOf(values) {
+  const v = values.filter((x) => x != null).sort((a, b) => a - b);
+  const n = v.length;
+  if (!n) return { mean: null, median: null, pct_up: null, best: null, worst: null, n: 0 };
+  const mean = v.reduce((a, b) => a + b, 0) / n;
+  const median = n % 2 ? v[(n - 1) / 2] : (v[n / 2 - 1] + v[n / 2]) / 2;
+  return { mean, median, pct_up: (100 * v.filter((x) => x > 0).length) / n, best: v[n - 1], worst: v[0], n };
 }
 
-function chartSVG(items, { baseline, fmtVal, fmtTick }) {
-  const W = 640, H = 270, m = { t: 26, r: 10, b: 32, l: 58 };
-  const iw = W - m.l - m.r, ih = H - m.t - m.b;
-  const vals = items.map(i => i.value).filter(v => v != null);
-  let lo = Math.min(baseline, ...vals), hi = Math.max(baseline, ...vals);
-  const pad = (hi - lo) * 0.15 || 1; lo -= pad; hi += pad;
-  const y = v => m.t + (hi - v) / (hi - lo) * ih;
-
-  const raw = (hi - lo) / 4, p10 = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p10;
-  const step = p10 * (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10);
-  const dec = Math.min(3, Math.max(0, -Math.floor(Math.log10(step))));
-
-  let grid = "";
-  for (let k = Math.ceil(lo / step); k <= Math.floor(hi / step); k++) {
-    const t = k * step;
-    grid += `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${y(t)}" y2="${y(t)}"/>` +
-            `<text x="${m.l - 8}" y="${y(t) + 4}" text-anchor="end">${fmtTick(t, dec)}</text>`;
+function normalize(raw) {
+  const pairs = {};
+  for (const [key, p] of Object.entries(raw.pairs || {})) {
+    const code = key.replace(/[^A-Za-z0-9]/g, "");
+    if (p.yearly) { pairs[code] = { label: key, ...p }; continue; } // déjà au format complet
+    const yearly = (p.by_year || []).map((y) => ({ year: y.year, ret: y.change, partial: !!y.partial }));
+    pairs[code] = {
+      label: p.label || key,
+      ticker: p.ticker,
+      start: p.start,
+      end: p.end,
+      years: p.years,
+      days: p.sessions ?? p.days,
+      last_close: p.last_close,
+      yearly,
+      yearly_stats: statsOf(yearly.filter((y) => !y.partial).map((y) => y.ret)),
+      monthly: (p.by_month || []).map((m) => ({ ...m, key: m.month, label: MONTH_NAMES[m.month - 1] })),
+      monthly_matrix: Object.fromEntries((p.month_matrix || []).map((r) => [String(r.year), r.values])),
+      week_of_month: (p.by_week || []).map((w) => ({ ...w, key: w.week, label: "Semaine " + w.week, range: WEEK_RANGES[w.week - 1] })),
+      weekday: (p.by_weekday || []).map((d) => ({ ...d, key: d.weekday + 1, label: WEEKDAY_NAMES[d.weekday] })),
+    };
   }
-  grid += `<line class="base" x1="${m.l}" x2="${W - m.r}" y1="${y(baseline)}" y2="${y(baseline)}"/>`;
-
-  const slot = iw / items.length, bw = Math.min(46, slot * 0.68);
-  let bars = "", labels = "";
-  items.forEach((it, i) => {
-    const cx = m.l + slot * i + slot / 2;
-    labels += `<text x="${cx}" y="${H - 10}" text-anchor="middle">${it.label}</text>`;
-    if (it.value == null) return;
-    const yv = y(it.value), yb = y(baseline), up = it.value >= baseline;
-    const top = Math.min(yv, yb), h = Math.max(1, Math.abs(yv - yb));
-    bars += `<rect class="${up ? "up" : "down"}${it.dim ? " dim" : ""}" x="${cx - bw / 2}" y="${top}" width="${bw}" height="${h}" rx="2"><title>${it.tip}</title></rect>`;
-    if (items.length <= 13) {
-      bars += `<text class="val" x="${cx}" y="${up ? top - 5 : top + h + 13}" text-anchor="middle">${fmtVal(it.value)}</text>`;
-    }
-  });
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Graphique en barres">${grid}${bars}${labels}</svg>`;
+  return { ...raw, pairs };
 }
 
-function metricFormats() {
-  return metric === "mean"
-    ? { baseline: 0, fmtVal: v => sg(v, 2), fmtTick: (t, d) => pct(t, d) }
-    : { baseline: 50, fmtVal: v => nf(v, 0) + "\u202f%", fmtTick: t => nf(t, 0) + "\u202f%" };
-}
-
-function periodSection({ id, title, text, rows, short }) {
-  const fm = metricFormats();
-  const key = metric;
-  const items = rows.map((r, i) => ({
-    label: short[i], value: r[key], dim: r.n > 0 && r.n < LOW_N,
-    tip: `${rows[i].label} : ${pct(r.mean)} en moyenne, ${nf(r.pct_up ?? 0, 0)} % haussier, ${r.n} observations`
-  }));
-  const scale = Math.max(...rows.map(r => Math.abs(r.mean ?? 0)), 1e-9);
-  const anyLow = rows.some(r => r.n > 0 && r.n < LOW_N);
-  const trs = rows.map(r => `<tr>
-    <td>${r.label}</td>
-    <td style="${tint(r.mean, scale)}">${pct(r.mean)}</td>
-    <td>${pct(r.median)}</td>
-    <td style="${tint(r.pct_up, 25, 50)}">${r.pct_up == null ? "–" : nf(r.pct_up, 1) + "\u202f%"}</td>
-    <td class="${r.n < LOW_N ? "low" : ""}">${r.n}</td></tr>`).join("");
-  return `<section id="${id}">
-    <div class="head"><h2>${title}</h2><p>${text}</p></div>
-    <div class="body">
-      <figure>${chartSVG(items, fm)}
-        <figcaption>${metric === "mean" ? "Variation moyenne par période." : "Part des périodes terminées en hausse, la ligne noire marque 50 %."}${anyLow ? ` Les barres pâles reposent sur moins de ${LOW_N} observations.` : ""}</figcaption>
-      </figure>
-      <div class="tablewrap"><table>
-        <thead><tr><th>Période</th><th>Moyenne</th><th>Médiane</th><th>Haussier</th><th>Obs.</th></tr></thead>
-        <tbody>${trs}</tbody></table></div>
-    </div>
-    ${id === "mois" ? heatmap() : ""}
-  </section>`;
-}
-
-function yearSection(p) {
-  const rows = p.by_year;
-  const full = rows.filter(r => !r.partial), up = full.filter(r => r.change > 0).length;
-  const items = rows.map(r => ({
-    label: String(r.year).slice(2), value: r.change, dim: r.partial,
-    tip: `${r.year} : ${pct(r.change)}${r.partial ? " (année partielle)" : ""}`
-  }));
-  const scale = Math.max(...rows.map(r => Math.abs(r.change)), 1e-9);
-  const trs = [...rows].reverse().map(r => `<tr>
-    <td>${r.year}${r.partial ? ` <span class="tag">partielle</span>` : ""}</td>
-    <td style="${tint(r.change, scale)}">${pct(r.change)}</td>
-    <td>${r.change > 0 ? "Hausse" : r.change < 0 ? "Baisse" : "Stable"}</td></tr>`).join("");
-  return `<section id="annee">
-    <div class="head"><h2>Par année</h2>
-      <p>Variation de la première à la dernière clôture de chaque année. ${up} années haussières sur ${full.length} années complètes.</p></div>
-    <div class="body">
-      <figure>${chartSVG(items, { baseline: 0, fmtVal: v => sg(v, 1), fmtTick: (t, d) => pct(t, d) })}
-        <figcaption>Les barres pâles sont des années partielles (première année de données ou année en cours).</figcaption></figure>
-      <div class="tablewrap"><table>
-        <thead><tr><th>Année</th><th>Variation</th><th>Sens</th></tr></thead>
-        <tbody>${trs}</tbody></table></div>
-    </div>
-  </section>`;
-}
-
-function heatmap() {
-  const p = DATA.pairs[current];
-  const all = p.month_matrix.flatMap(r => r.values).filter(v => v != null).map(Math.abs).sort((a, b) => a - b);
-  const scale = all.length ? all[Math.floor(all.length * 0.95)] || all[all.length - 1] : 1;
-  const head = `<tr><th>Année</th>${MONTHS.map(m => `<th>${m}</th>`).join("")}</tr>`;
-  const body = [...p.month_matrix].reverse().map(r =>
-    `<tr><td>${r.year}</td>${r.values.map(v => `<td style="${tint(v, scale)}">${v == null ? "" : sg(v, 1)}</td>`).join("")}</tr>`
-  ).join("");
-  const avg = p.by_month.map(r => `<td style="${tint(r.mean, scale)}">${sg(r.mean, 2)}</td>`).join("");
-  const up = p.by_month.map(r => `<td style="${tint(r.pct_up, 25, 50)}">${r.pct_up == null ? "" : nf(r.pct_up, 0) + "\u202f%"}</td>`).join("");
-  return `<div class="heatblock">
-    <h3>Chaque mois, année par année</h3>
-    <p>Variation en pourcent de chaque mois. Les deux dernières lignes résument la colonne : moyenne et part de mois haussiers.</p>
-    <div class="tablewrap"><table class="heat"><thead>${head}</thead><tbody>${body}
-      <tr class="sum"><td>Moyenne</td>${avg}</tr><tr class="sum"><td>Haussier</td>${up}</tr></tbody></table></div>
-  </div>`;
-}
-
-function render() {
-  const p = DATA.pairs[current];
-  document.querySelectorAll("#pairs button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.pair === current)));
-  document.querySelectorAll(".metric button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.metric === metric)));
-  $("#facts").textContent = `Données du ${dateFr(p.start)} au ${dateFr(p.end)}, soit ${nf(p.years, 1)} ans et ${p.sessions.toLocaleString("fr-FR")} séances.`;
-
-  const months = p.by_month.map((r, i) => ({ ...r, label: MONTHS[i][0].toUpperCase() + MONTHS[i].slice(1) }));
-  const weeks = p.by_week.map((r, i) => ({ ...r, label: WEEKS[i] }));
-  const days = p.by_weekday.map((r, i) => ({ ...r, label: DAYS[i] }));
-
-  $("#app").innerHTML =
-    yearSection(p) +
-    periodSection({ id: "mois", title: "Par mois de l’année", rows: months, short: MONTHS,
-      text: "Comment la paire se comporte en janvier, en février, et ainsi de suite, sur tout l’historique." }) +
-    periodSection({ id: "semaine", title: "Par semaine du mois", rows: weeks, short: ["S1","S2","S3","S4","S5"],
-      text: "Y a-t-il une semaine du mois plus haussière ou plus baissière que les autres ?" }) +
-    periodSection({ id: "jour", title: "Par jour de la semaine", rows: days, short: ["Lun","Mar","Mer","Jeu","Ven"],
-      text: "Variation de clôture à clôture pour chaque jour de la semaine." });
-}
-
-function showEmpty(msg) {
-  $("#updated").textContent = "";
-  $("#app").innerHTML = `<div class="notice"><strong>Les données ne sont pas disponibles.</strong>${msg}</div>`;
-}
-
-async function init() {
+/* ---------- Chargement ---------- */
+async function load() {
   try {
-    if (location.protocol === "file:") throw new Error("file");
-    const res = await fetch("data.json", { cache: "no-cache" });
-    if (!res.ok) throw new Error(res.status);
-    DATA = await res.json();
-  } catch (e) {
-    showEmpty(e.message === "file"
-      ? "Ouvre la page depuis GitHub Pages, ou lance un petit serveur local avec « python -m http.server » dans le dossier docs."
-      : "Le fichier data.json n’existe pas encore. Dans GitHub, ouvre l’onglet Actions, choisis « Mise à jour des données » et clique sur « Run workflow ».");
+    const res = await fetch("data.json?v=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    state.data = normalize(await res.json());
+  } catch (err) {
+    showEmpty(err);
     return;
   }
-  const names = Object.keys(DATA.pairs);
-  current = names[0];
-  $("#updated").textContent = "Dernière mise à jour : " +
-    new Date(DATA.generated_at).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" });
-  $("#pairs").innerHTML = names.map(n => `<button type="button" data-pair="${n}" aria-pressed="false">${n}</button>`).join("");
-  $("#toolbar").hidden = false; $("#footer").hidden = false;
-  $("#pairs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) { current = b.dataset.pair; render(); } });
-  $(".metric").addEventListener("click", e => { const b = e.target.closest("button"); if (b) { metric = b.dataset.metric; render(); } });
+  const codes = Object.keys(state.data.pairs);
+  if (!codes.length) { showEmpty(new Error("fichier vide")); return; }
+
+  const [h1, h2] = location.hash.replace("#", "").split("/");
+  state.pair = codes.includes(h1) ? h1 : codes[0];
+  if (TABS.some((t) => t.id === h2)) state.tab = h2;
+
+  $("controls").hidden = false;
+  $("source").textContent = "Source des cours : " + state.data.source + " (gratuite, non officielle : de petits trous sont possibles).";
+  renderPairs();
+  renderTabs();
+  renderMetric();
   render();
 }
-init();
+
+function showEmpty(err) {
+  $("fresh").textContent = "";
+  $("pairs").innerHTML = "";
+  $("view").innerHTML = `
+    <div class="notice">
+      <h2>Les données ne sont pas encore disponibles</h2>
+      <p>Le fichier <code>data.json</code> est introuvable. Sur GitHub, ouvrez l'onglet <strong>Actions</strong>, choisissez « Mise à jour des données » puis cliquez sur <strong>Run workflow</strong>. Rechargez cette page une minute plus tard.</p>
+      <p>Si vous ouvrez ce fichier directement depuis votre ordinateur, le navigateur bloque la lecture des données : lancez <code>python -m http.server</code> dans le dossier <code>docs</code>, puis ouvrez <code>http://localhost:8000</code>.</p>
+      <p style="color:var(--muted)">Détail technique : ${esc(err.message)}</p>
+    </div>`;
+}
+
+/* ---------- Navigation ---------- */
+function renderPairs() {
+  $("pairs").innerHTML = Object.entries(state.data.pairs).map(([code, p]) =>
+    `<button type="button" data-code="${esc(code)}" aria-pressed="${code === state.pair}">${esc(p.label)}</button>`).join("");
+  $("pairs").onclick = (e) => {
+    const b = e.target.closest("button[data-code]");
+    if (!b) return;
+    state.pair = b.dataset.code;
+    renderPairs(); render();
+  };
+}
+function renderTabs() {
+  $("tabs").innerHTML = TABS.map((t) =>
+    `<button type="button" role="tab" data-tab="${t.id}" aria-selected="${t.id === state.tab}">${t.label}</button>`).join("");
+  $("tabs").onclick = (e) => {
+    const b = e.target.closest("button[data-tab]");
+    if (!b) return;
+    state.tab = b.dataset.tab;
+    renderTabs(); render();
+  };
+}
+function renderMetric() {
+  $("metricWrap").hidden = state.tab === "annee";
+  $("metric").innerHTML = METRICS.map((m) =>
+    `<button type="button" data-metric="${m.id}" aria-pressed="${m.id === state.metric}">${m.label}</button>`).join("");
+  $("metric").onclick = (e) => {
+    const b = e.target.closest("button[data-metric]");
+    if (!b) return;
+    state.metric = b.dataset.metric;
+    renderMetric(); render();
+  };
+}
+
+/* ---------- Rendu principal ---------- */
+function render() {
+  const p = state.data.pairs[state.pair];
+  history.replaceState(null, "", "#" + state.pair + "/" + state.tab);
+  renderMetric();
+
+  $("fresh").innerHTML = `Données jusqu'au <strong>${fmtDate(p.end)}</strong>`;
+  $("summary").innerHTML = `
+    <div><dt>Historique depuis</dt><dd>${fmtDate(p.start)}</dd></div>
+    <div><dt>Durée</dt><dd>${nf(p.years, 1)} <small>ans</small></dd></div>
+    <div><dt>Jours de bourse</dt><dd>${fmtInt(p.days)}</dd></div>
+    <div><dt>Dernier cours</dt><dd>${nf(p.last_close, p.last_close > 20 ? 3 : 5)}</dd></div>`;
+
+  const views = { annee: viewYear, mois: viewMonth, semaine: viewWeek, jour: viewDay };
+  $("view").innerHTML = views[state.tab](p);
+}
+
+/* ---------- Graphique en barres ---------- */
+function chart(items, { title, showValues = true } = {}) {
+  const vals = items.map((i) => i.value).filter((v) => v != null);
+  const maxPos = Math.max(0, ...vals);
+  const maxNeg = Math.max(0, ...vals.map((v) => -v));
+  const range = maxPos + maxNeg || 1;
+  const zero = (maxPos / range) * 100;
+  const dense = items.length > 14;
+
+  const cols = items.map((i) => {
+    if (i.value == null) return `<div class="col"></div>`;
+    const h = (Math.abs(i.value) / range) * 100;
+    const top = i.value >= 0 ? zero - h : zero;
+    const c = cls(i.value) || "up";
+    const label = showValues && !dense
+      ? `<span class="val ${c}" style="${i.value >= 0 ? `bottom:calc(${100 - top}% + 3px)` : `top:calc(${top + h}% + 3px)`}">${pct(i.value, 2)}</span>`
+      : "";
+    return `<div class="col" title="${esc(i.title)}"><span class="bar ${c}${i.dim ? " dim" : ""}" style="top:${top}%;height:${h}%"></span>${label}</div>`;
+  }).join("");
+
+  const xl = items.map((i) => `<span>${esc(i.label)}${i.sub ? `<small>${esc(i.sub)}</small>` : ""}</span>`).join("");
+  return `<div class="chart${dense ? " dense" : ""}" role="img" aria-label="${esc(title)}">
+    <div class="plot"><div class="zero" style="top:${zero}%"></div><div class="cols">${cols}</div></div>
+    <div class="xlabels">${xl}</div></div>`;
+}
+
+function meter(v) {
+  if (v == null) return "";
+  const up = v >= 50;
+  const w = Math.abs(v - 50); // la barre part du centre (50 %)
+  const style = up ? `left:50%;width:${w}%` : `right:50%;width:${w}%`;
+  return `<span class="meter" aria-hidden="true"><i class="${up ? "up" : "down"}" style="${style}"></i><b></b></span>`;
+}
+
+function statsTable(rows, firstHeader, sub) {
+  const body = rows.map((r) => {
+    const thin = r.n < THIN;
+    return `<tr class="${thin ? "thin" : ""}">
+      <td>${esc(r.label)}${sub && r[sub] ? ` <span style="color:var(--muted);font-size:.85em">(${esc(r[sub])})</span>` : ""}${thin ? '<span class="tag">échantillon faible</span>' : ""}</td>
+      <td class="${cls(r.mean)}">${pct(r.mean)}</td>
+      <td class="${cls(r.median)}">${pct(r.median)}</td>
+      <td>${plain(r.pct_up)}${meter(r.pct_up)}</td>
+      <td>${pct(r.best)}</td>
+      <td>${pct(r.worst)}</td>
+      <td>${fmtInt(r.n)}</td>
+    </tr>`;
+  }).join("");
+  return `<div class="tablewrap"><table>
+    <thead><tr><th scope="col">${firstHeader}</th><th scope="col">Moyenne</th><th scope="col">Médiane</th><th scope="col">% haussier</th><th scope="col">Meilleure</th><th scope="col">Pire</th><th scope="col">Obs.</th></tr></thead>
+    <tbody>${body}</tbody></table></div>`;
+}
+
+/* Phrase de lecture automatique : meilleure et pire période, avec le nombre d'observations */
+function reading(rows, noun) {
+  const ok = rows.filter((r) => r[state.metric] != null && r.n > 0);
+  if (ok.length < 2) return "";
+  const best = ok.reduce((a, b) => (b[state.metric] > a[state.metric] ? b : a));
+  const worst = ok.reduce((a, b) => (b[state.metric] < a[state.metric] ? b : a));
+  const m = state.metric === "mean" ? "en moyenne" : "en médiane";
+  const d = (r) => `${esc(r.label.toLowerCase())} (${pct(r[state.metric])}, haussier ${plain(r.pct_up, 0)} du temps sur ${fmtInt(r.n)} observations)`;
+  return `<div class="reading"><p>${noun} le plus haussier ${m} : ${d(best)}. Le plus baissier : ${d(worst)}.</p></div>`;
+}
+
+/* ---------- Vues ---------- */
+function viewYear(p) {
+  const items = p.yearly.map((y) => ({
+    label: "\u2019" + String(y.year).slice(2),
+    value: y.ret,
+    dim: y.partial,
+    title: `${y.year} : ${pct(y.ret)}${y.partial ? " (année partielle)" : ""}`,
+  }));
+  const rows = [...p.yearly].reverse().map((y) => `<tr>
+      <td>${y.year}${y.partial ? '<span class="tag">année partielle</span>' : ""}</td>
+      <td class="${cls(y.ret)}">${pct(y.ret)}</td></tr>`).join("");
+  const s = p.yearly_stats;
+  const summary = s && s.n
+    ? `<div class="reading"><p>Sur les ${s.n} années complètes : variation moyenne ${pct(s.mean)}, médiane ${pct(s.median)}, année haussière ${plain(s.pct_up, 0)} du temps. Les barres pâles sont des années partielles.</p></div>`
+    : "";
+  return `<section class="panel">
+    <h2>Variation par année</h2>
+    <p class="lede">Ce qu'a fait la paire sur chaque année civile, du premier au dernier jour de bourse.</p>
+    ${chart(items, { title: "Variation annuelle de " + p.label })}
+    ${summary}
+  </section>
+  <section class="panel"><div class="tablewrap"><table style="max-width:420px">
+    <thead><tr><th scope="col">Année</th><th scope="col">Variation</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+}
+
+function viewMonth(p) {
+  const rows = p.monthly;
+  const items = rows.map((r, i) => ({ label: MONTH_SHORT[i], value: r[state.metric], title: `${r.label} : ${pct(r[state.metric])} (${r.n} obs.)` }));
+  return `<section class="panel">
+    <h2>Variation par mois de l'année</h2>
+    <p class="lede">Pour chaque mois du calendrier, ce que la paire fait habituellement : on compare tous les janviers entre eux, tous les févriers entre eux, etc.</p>
+    ${chart(items, { title: "Variation par mois de " + p.label })}
+    ${reading(rows, "Mois")}
+  </section>
+  <section class="panel">${statsTable(rows, "Mois")}</section>
+  ${heatmap(p)}`;
+}
+
+function viewWeek(p) {
+  const rows = p.week_of_month;
+  const items = rows.map((r) => ({ label: "S" + r.key, sub: r.range.replace("jours ", "j. "), value: r[state.metric], title: `${r.label} (${r.range}) : ${pct(r[state.metric])} (${r.n} obs.)` }));
+  return `<section class="panel">
+    <h2>Variation par semaine du mois</h2>
+    <p class="lede">Le mois est découpé en tranches de 7 jours : la semaine 1 couvre les jours 1 à 7, la semaine 2 les jours 8 à 14, et ainsi de suite. La semaine 5 (jours 29 à 31) n'existe pas tous les mois.</p>
+    ${chart(items, { title: "Variation par semaine du mois de " + p.label })}
+    ${reading(rows, "Semaine")}
+  </section>
+  <section class="panel">${statsTable(rows, "Semaine", "range")}</section>`;
+}
+
+function outlierNote(p) {
+  const big = p.weekday.flatMap((r) => [r.best, r.worst]).filter((v) => v != null && Math.abs(v) > 8);
+  if (!big.length) return "";
+  const list = big.map((v) => pct(v)).join(", ");
+  return `<div class="reading"><p><strong>À vérifier :</strong> une variation en une seule journée de ${list} est soit un événement exceptionnel, soit une erreur dans les données de Yahoo Finance. Ces valeurs isolées pèsent sur la moyenne ; la médiane y résiste mieux.</p></div>`;
+}
+
+function viewDay(p) {
+  const rows = p.weekday;
+  const items = rows.map((r, i) => ({ label: WEEKDAY_SHORT[i], value: r[state.metric], title: `${r.label} : ${pct(r[state.metric], 3)} (${r.n} obs.)` }));
+  return `<section class="panel">
+    <h2>Variation par jour de la semaine</h2>
+    <p class="lede">Variation d'une journée de bourse, selon qu'il s'agit d'un lundi, d'un mardi, etc. Les écarts sont petits : ici, les chiffres sont donnés avec trois décimales.</p>
+    ${chart(items, { title: "Variation par jour de la semaine de " + p.label })}
+    ${reading(rows, "Jour")}
+    ${outlierNote(p)}
+  </section>
+  <section class="panel">${statsTable(rows.map((r) => r), "Jour")}</section>`;
+}
+
+/* ---------- Carte de chaleur année × mois ---------- */
+function heatmap(p) {
+  const years = Object.keys(p.monthly_matrix).sort((a, b) => b - a);
+  if (!years.length) return "";
+  const all = years.flatMap((y) => p.monthly_matrix[y]).filter((v) => v != null).map(Math.abs).sort((a, b) => a - b);
+  const scale = all[Math.floor(all.length * 0.9)] || 1; // au-delà du 90e centile, la couleur est à son maximum
+
+  const cell = (v) => {
+    if (v == null) return `<td class="cell empty"></td>`;
+    const k = Math.min(1, Math.abs(v) / scale) * 80;
+    const colour = v >= 0 ? "--up" : "--down";
+    return `<td class="cell" style="background:color-mix(in srgb, var(${colour}) ${k.toFixed(0)}%, var(--panel))" title="${pct(v)}">${v < 0 && Number(v.toFixed(1)) !== 0 ? "\u2212" : ""}${nf(v, 1)}</td>`;
+  };
+  const head = MONTH_SHORT.map((m) => `<th scope="col">${m}</th>`).join("");
+  const body = years.map((y) => `<tr><td>${y}</td>${p.monthly_matrix[y].map(cell).join("")}</tr>`).join("");
+  return `<section class="panel heat">
+    <h2>Mois par mois, année après année</h2>
+    <p class="lede">Chaque case est la variation (en %) d'un mois précis. Un mois est régulier quand sa colonne garde la même couleur d'une année à l'autre.</p>
+    <div class="tablewrap"><table><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table></div>
+    <div class="legend"><span>Baisse</span><span class="sw d"></span><span class="sw u"></span><span>Hausse</span><span>(couleur maximale à partir de ${nf(scale, 1)}${NBSP}%)</span></div>
+  </section>`;
+}
+
+load();
 </script>
 </body>
 </html>
