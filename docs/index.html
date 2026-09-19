@@ -40,7 +40,6 @@
     background: var(--bg);
     color: var(--ink);
     font: 400 16px/1.5 var(--font);
-    font-variant-numeric: tabular-nums;
   }
   .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 20px 56px; }
 
@@ -363,7 +362,7 @@ function render() {
 }
 
 /* ---------- Graphique en barres ---------- */
-function chart(items, { title, showValues = true } = {}) {
+function chart(items, { title, showValues = true, digits = 2 } = {}) {
   const vals = items.map((i) => i.value).filter((v) => v != null);
   const maxPos = Math.max(0, ...vals);
   const maxNeg = Math.max(0, ...vals.map((v) => -v));
@@ -377,7 +376,7 @@ function chart(items, { title, showValues = true } = {}) {
     const top = i.value >= 0 ? zero - h : zero;
     const c = cls(i.value) || "up";
     const label = showValues && !dense
-      ? `<span class="val ${c}" style="${i.value >= 0 ? `bottom:calc(${100 - top}% + 3px)` : `top:calc(${top + h}% + 3px)`}">${pct(i.value, 2)}</span>`
+      ? `<span class="val ${c}" style="${i.value >= 0 ? `bottom:calc(${100 - top}% + 3px)` : `top:calc(${top + h}% + 3px)`}">${pct(i.value, digits)}</span>`
       : "";
     return `<div class="col" title="${esc(i.title)}"><span class="bar ${c}${i.dim ? " dim" : ""}" style="top:${top}%;height:${h}%"></span>${label}</div>`;
   }).join("");
@@ -396,13 +395,13 @@ function meter(v) {
   return `<span class="meter" aria-hidden="true"><i class="${up ? "up" : "down"}" style="${style}"></i><b></b></span>`;
 }
 
-function statsTable(rows, firstHeader, sub) {
+function statsTable(rows, firstHeader, sub, digits = 2) {
   const body = rows.map((r) => {
     const thin = r.n < THIN;
     return `<tr class="${thin ? "thin" : ""}">
       <td>${esc(r.label)}${sub && r[sub] ? ` <span style="color:var(--muted);font-size:.85em">(${esc(r[sub])})</span>` : ""}${thin ? '<span class="tag">échantillon faible</span>' : ""}</td>
-      <td class="${cls(r.mean)}">${pct(r.mean)}</td>
-      <td class="${cls(r.median)}">${pct(r.median)}</td>
+      <td class="${cls(r.mean)}">${pct(r.mean, digits)}</td>
+      <td class="${cls(r.median)}">${pct(r.median, digits)}</td>
       <td>${plain(r.pct_up)}${meter(r.pct_up)}</td>
       <td>${pct(r.best)}</td>
       <td>${pct(r.worst)}</td>
@@ -482,17 +481,25 @@ function outlierNote(p) {
   return `<div class="reading"><p><strong>À vérifier :</strong> une variation en une seule journée de ${list} est soit un événement exceptionnel, soit une erreur dans les données de Yahoo Finance. Ces valeurs isolées pèsent sur la moyenne ; la médiane y résiste mieux.</p></div>`;
 }
 
+function removedNote(p) {
+  const r = p.removed_outliers || [];
+  if (!r.length) return "";
+  const list = r.map((o) => `${fmtDate(o.date)} (${pct(o.change)})`).join(", ");
+  return `<p style="color:var(--muted);font-size:.85rem;margin:12px 0 0">${r.length} cours aberrant${r.length > 1 ? "s" : ""} de Yahoo retiré${r.length > 1 ? "s" : ""} pour ${esc(p.label)} : ${list}.</p>`;
+}
+
 function viewDay(p) {
   const rows = p.weekday;
   const items = rows.map((r, i) => ({ label: WEEKDAY_SHORT[i], value: r[state.metric], title: `${r.label} : ${pct(r[state.metric], 3)} (${r.n} obs.)` }));
   return `<section class="panel">
     <h2>Variation par jour de la semaine</h2>
     <p class="lede">Variation d'une journée de bourse, selon qu'il s'agit d'un lundi, d'un mardi, etc. Les écarts sont petits : ici, les chiffres sont donnés avec trois décimales.</p>
-    ${chart(items, { title: "Variation par jour de la semaine de " + p.label })}
+    ${chart(items, { title: "Variation par jour de la semaine de " + p.label, digits: 3 })}
     ${reading(rows, "Jour")}
     ${outlierNote(p)}
+    ${removedNote(p)}
   </section>
-  <section class="panel">${statsTable(rows.map((r) => r), "Jour")}</section>`;
+  <section class="panel">${statsTable(rows, "Jour", null, 3)}</section>`;
 }
 
 /* ---------- Carte de chaleur année × mois ---------- */
