@@ -1,155 +1,256 @@
-"""Calcule la saisonnalité des 7 devises majeures et écrit docs/data.json."""
+#!/usr/bin/env python3
+"""
+Calcule la saisonnalité des 7 paires de devises majeures et écrit docs/data.json.
+
+Découpages calculés pour chaque paire :
+  - par année
+  - par mois de l'année
+  - par semaine du mois   (S1 = jours 1-7, S2 = 8-14, S3 = 15-21, S4 = 22-28, S5 = 29-31)
+  - par jour de la semaine (lundi à vendredi)
+
+Toutes les variations sont en % et calculées à partir des cours de clôture
+journaliers. Une période "composée" = variation cumulée des jours qu'elle contient.
+"""
+
 import json
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
-# Pour ajouter un actif plus tard : une ligne ici suffit.
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "docs" / "data.json"
+
+# Pour ajouter un actif plus tard (indice, or, pétrole...), ajouter une ligne ici.
 PAIRS = {
-    "EUR/USD": "EURUSD=X",
-    "GBP/USD": "GBPUSD=X",
-    "USD/JPY": "USDJPY=X",
-    "USD/CHF": "USDCHF=X",
-    "USD/CAD": "USDCAD=X",
-    "AUD/USD": "AUDUSD=X",
-    "NZD/USD": "NZDUSD=X",
+    "EURUSD": {"label": "EUR/USD", "ticker": "EURUSD=X"},
+    "GBPUSD": {"label": "GBP/USD", "ticker": "GBPUSD=X"},
+    "USDJPY": {"label": "USD/JPY", "ticker": "USDJPY=X"},
+    "USDCHF": {"label": "USD/CHF", "ticker": "USDCHF=X"},
+    "USDCAD": {"label": "USD/CAD", "ticker": "USDCAD=X"},
+    "AUDUSD": {"label": "AUD/USD", "ticker": "AUDUSD=X"},
+    "NZDUSD": {"label": "NZD/USD", "ticker": "NZDUSD=X"},
 }
 
-OUT = Path(__file__).resolve().parent.parent / "docs" / "data.json"
+MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet",
+          "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
+WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
+WEEK_RANGES = ["jours 1 à 7", "jours 8 à 14", "jours 15 à 21", "jours 22 à 28", "jours 29 à 31"]
 
 
-def fetch_close(ticker: str) -> pd.Series:
-    """Historique journalier maximal des clôtures, jours ouvrés uniquement."""
-    df = yf.download(ticker, period="max", interval="1d",
-                     auto_adjust=False, progress=False)
-    if df is None or df.empty:
-        raise RuntimeError(f"Aucune donnée pour {ticker}")
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-    s = df["Close"].dropna()
-    s = s[s > 0]
-    s.index = pd.to_datetime(s.index).tz_localize(None).normalize()
-    s = s[s.index.dayofweek < 5]
-    return s[~s.index.duplicated()].sort_index()
+# --------------------------------------------------------------------------- #
+# Téléchargement
+# --------------------------------------------------------------------------- #
+def fetch_close(ticker: str, retries: int = 3):
+    """Cours de clôture journaliers (jours terminés uniquement) + liste des erreurs retirées."""
+    import yfinance as yf
+
+    last_error = None
+    for attempt in range(1, retries + 1):
+        try:
+            df = yf.Ticker(ticker).history(period="max", interval="1d", auto_adjust=False)
+            if df is None or df.empty:
+                raise RuntimeError("aucune donnée reçue")
+            close = df["Close"].copy()
+            close.index = pd.to_datetime(close.index).tz_localize(None).normalize()
+            return remove_spikes(clean_close(close))
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            print(f"  tentative {attempt}/{retries} échouée pour {ticker} : {exc}")
+            time.sleep(3 * attempt)
+    raise RuntimeError(f"{ticker} : {last_error}")
 
 
-def stats(values) -> dict:
-    v = pd.Series(list(values), dtype="float64").dropna()
-    if v.empty:
-        return {"n": 0, "mean": None, "median": None,
-                "pct_up": None, "best": None, "worst": None}
+def clean_close(close: pd.Series) -> pd.Series:
+    close = close[~close.index.duplicated(keep="last")].sort_index()
+    close = close[close.notna() & (close > 0)]
+    close = close[close.index.dayofweek < 5]
+    # On retire la bougie du jour en cours (incomplète) : seulement des jours terminés.
+    today = pd.Timestamp(datetime.now(timezone.utc).date())
+    return close[close.index < today]
+
+
+SPIKE_THRESHOLD = 0.05   # variation d'un jour à partir de laquelle on soupçonne une erreur
+SPIKE_REVERSAL = 0.25    # ... si le lendemain annule presque tout (écart net < 25 % du saut)
+
+
+def remove_spikes(close: pd.Series):
+    """
+    Yahoo contient parfois un cours isolé aberrant (ex. +17 % un jour, puis retour à la normale
+    le lendemain). On retire ces points : un vrai mouvement (Brexit, franc suisse en 2015...)
+    ne s'annule pas le jour suivant, donc il est conservé.
+    """
+    r = close.pct_change()
+    nxt = r.shift(-1)
+    net = (1 + r) * (1 + nxt) - 1
+    spike = (r.abs() > SPIKE_THRESHOLD) & (np.sign(r) != np.sign(nxt)) & (net.abs() < SPIKE_REVERSAL * r.abs())
+    removed = [{"date": d.strftime("%Y-%m-%d"), "change": round(float(r[d] * 100), 2)} for d in close.index[spike.fillna(False)]]
+    return close[~spike.fillna(False)], removed
+
+
+# --------------------------------------------------------------------------- #
+# Statistiques
+# --------------------------------------------------------------------------- #
+def r(x, digits=3):
+    if x is None or (isinstance(x, float) and np.isnan(x)):
+        return None
+    return round(float(x), digits)
+
+
+def compound(x: pd.Series) -> float:
+    """Variation cumulée (%) d'une série de rendements journaliers (%)."""
+    return (np.prod(1 + x.to_numpy() / 100) - 1) * 100
+
+
+def stat_block(values: pd.Series) -> dict:
+    v = values.dropna()
+    n = len(v)
+    if n == 0:
+        return {"mean": None, "median": None, "pct_up": None, "best": None, "worst": None, "n": 0}
     return {
-        "n": int(len(v)),
-        "mean": round(float(v.mean()), 4),
-        "median": round(float(v.median()), 4),
-        "pct_up": round(float((v > 0).mean() * 100), 1),
-        "best": round(float(v.max()), 3),
-        "worst": round(float(v.min()), 3),
+        "mean": r(v.mean()),
+        "median": r(v.median()),
+        "pct_up": r(100 * (v > 0).mean(), 1),
+        "best": r(v.max()),
+        "worst": r(v.min()),
+        "n": int(n),
     }
 
 
-def analyze(close: pd.Series, now: pd.Timestamp) -> dict:
-    today = now.normalize()
+def bucket_key(ts: pd.Timestamp, kind: str):
+    if kind == "month":
+        return (ts.year, ts.month)
+    return (ts.year, ts.month, (ts.day - 1) // 7 + 1)
 
-    # Une clôture datée d'aujourd'hui avant 22h UTC n'est pas définitive.
-    if close.index[-1] == today and now.hour < 22:
-        close = close.iloc[:-1]
 
-    first_date, last_date = close.index[0], close.index[-1]
+def drop_incomplete(groups: pd.Series, close: pd.Series, kind: str) -> pd.Series:
+    """Retire la première période (début de l'historique) et la dernière si elle est en cours."""
+    keys_to_drop = {bucket_key(close.index[0], kind)}
+    last = close.index[-1]
+    next_day = last + pd.offsets.BDay(1)
+    if bucket_key(next_day, kind) == bucket_key(last, kind):
+        keys_to_drop.add(bucket_key(last, kind))
+    return groups[[k not in keys_to_drop for k in groups.index]]
 
-    # --- Par année : variation de clôture à clôture ---------------------
-    g = close.groupby(close.index.year)
-    last, first = g.last(), g.first()
-    ref = last.shift(1).fillna(first)
-    year_ret = (last / ref - 1) * 100
-    first_partial = first_date > pd.Timestamp(first_date.year, 1, 10)
-    by_year = []
-    for y, r in year_ret.items():
-        partial = (y == first_date.year and first_partial) or y == today.year
-        by_year.append({"year": int(y), "change": round(float(r), 3),
-                        "partial": bool(partial)})
 
-    # --- Par mois de l'année (mois terminés uniquement) -----------------
-    ym = close.groupby([close.index.year, close.index.month]).last()
-    mret = (ym.pct_change() * 100).dropna()
-    mret = mret[[k != (today.year, today.month) for k in mret.index]]
-    months = mret.index.get_level_values(1)
-    by_month = [{"month": m, **stats(mret[months == m])} for m in range(1, 13)]
+def compute_pair(close: pd.Series) -> dict:
+    ret = close.pct_change().dropna() * 100
+    df = pd.DataFrame({"ret": ret})
+    df["year"] = df.index.year
+    df["month"] = df.index.month
+    df["wom"] = (df.index.day - 1) // 7 + 1
+    df["wd"] = df.index.dayofweek
 
-    matrix = []
-    for y in sorted(set(mret.index.get_level_values(0))):
-        row = []
-        for m in range(1, 13):
-            v = mret.get((y, m), np.nan)
-            row.append(None if pd.isna(v) else round(float(v), 3))
-        matrix.append({"year": int(y), "values": row})
+    first_year, last_year = close.index[0].year, close.index[-1].year
 
-    # --- Par semaine du mois (blocs de jours : 1-7, 8-14, 15-21, 22-28, 29+)
-    lr = np.log(close).diff().dropna()
-    d = pd.DataFrame({"lr": lr.values, "y": lr.index.year,
-                      "m": lr.index.month, "w": (lr.index.day - 1) // 7 + 1},
-                     index=lr.index)
-    d = d[~((d.y == d.y.iloc[0]) & (d.m == d.m.iloc[0]))]      # 1er mois partiel
-    d = d[~((d.y == today.year) & (d.m == today.month))]       # mois en cours
-    wk = np.expm1(d.groupby(["y", "m", "w"])["lr"].sum()) * 100
-    weeks = wk.index.get_level_values("w")
-    by_week = [{"week": w, **stats(wk[weeks == w])} for w in range(1, 6)]
+    # ---- Par année -------------------------------------------------------- #
+    yearly = []
+    for year, g in df.groupby("year")["ret"]:
+        partial = (year == first_year and close.index[0] > pd.Timestamp(year, 1, 10)) or (
+            year == last_year and close.index[-1] < pd.Timestamp(year, 12, 24))
+        yearly.append({"year": int(year), "ret": r(compound(g)), "partial": bool(partial)})
+    full_years = pd.Series([y["ret"] for y in yearly if not y["partial"]], dtype=float)
 
-    # --- Par jour de la semaine -----------------------------------------
-    dr = (close.pct_change() * 100).dropna()
-    by_weekday = [{"weekday": k, **stats(dr[dr.index.dayofweek == k])}
-                  for k in range(5)]
+    # ---- Par mois de l'année --------------------------------------------- #
+    monthly_series = df.groupby(["year", "month"])["ret"].apply(compound)
+    monthly_series = drop_incomplete(monthly_series, close, "month")
 
+    monthly = []
+    for m in range(1, 13):
+        vals = monthly_series[monthly_series.index.get_level_values("month") == m]
+        monthly.append({"key": m, "label": MONTHS[m - 1], **stat_block(vals)})
+
+    matrix = {}
+    for (year, month), value in monthly_series.items():
+        matrix.setdefault(str(year), [None] * 12)[month - 1] = r(value, 2)
+
+    # ---- Par semaine du mois --------------------------------------------- #
+    wom_series = df.groupby(["year", "month", "wom"])["ret"].apply(compound)
+    wom_series = drop_incomplete(wom_series, close, "wom")
+
+    week_of_month = []
+    for w in range(1, 6):
+        vals = wom_series[wom_series.index.get_level_values("wom") == w]
+        week_of_month.append({"key": w, "label": f"Semaine {w}", "range": WEEK_RANGES[w - 1],
+                              **stat_block(vals)})
+
+    # ---- Par jour de la semaine ------------------------------------------ #
+    weekday = []
+    for d in range(5):
+        weekday.append({"key": d + 1, "label": WEEKDAYS[d], **stat_block(df.loc[df["wd"] == d, "ret"])})
+
+    start, end = close.index[0], close.index[-1]
     return {
-        "start": first_date.date().isoformat(),
-        "end": last_date.date().isoformat(),
-        "years": round((last_date - first_date).days / 365.25, 1),
-        "sessions": int(len(close)),
-        "last_close": round(float(close.iloc[-1]), 5),
-        "by_year": by_year,
-        "by_month": by_month,
-        "month_matrix": matrix,
-        "by_week": by_week,
-        "by_weekday": by_weekday,
+        "start": start.strftime("%Y-%m-%d"),
+        "end": end.strftime("%Y-%m-%d"),
+        "years": round((end - start).days / 365.25, 1),
+        "days": int(len(close)),
+        "last_close": r(close.iloc[-1], 5),
+        "yearly": yearly,
+        "yearly_stats": stat_block(full_years),
+        "monthly": monthly,
+        "monthly_matrix": matrix,
+        "week_of_month": week_of_month,
+        "weekday": weekday,
     }
 
 
-def main() -> None:
-    previous = {}
+# --------------------------------------------------------------------------- #
+# Programme principal
+# --------------------------------------------------------------------------- #
+def load_previous() -> dict:
     if OUT.exists():
         try:
-            previous = json.loads(OUT.read_text(encoding="utf-8")).get("pairs", {})
-        except Exception:
+            return json.loads(OUT.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
             pass
+    return {}
 
-    now = pd.Timestamp.now(tz="UTC").tz_localize(None)
-    pairs, failures = {}, []
-    for name, ticker in PAIRS.items():
+
+def main() -> int:
+    previous = load_previous()
+    previous_pairs = previous.get("pairs", {})
+    pairs_out, failures = {}, []
+
+    for code, info in PAIRS.items():
+        print(f"{info['label']} ({info['ticker']})")
         try:
-            pairs[name] = {"ticker": ticker, **analyze(fetch_close(ticker), now)}
-            print(f"OK   {name}: {pairs[name]['start']} -> {pairs[name]['end']}")
-        except Exception as e:                       # on garde l'ancienne version
-            failures.append(name)
-            print(f"FAIL {name}: {e}", file=sys.stderr)
-            if name in previous:
-                pairs[name] = previous[name]
+            close, removed = fetch_close(info["ticker"])
+            stats = compute_pair(close)
+            stats["removed_outliers"] = removed
+            print(f"  {stats['days']} jours, du {stats['start']} au {stats['end']}")
+            if removed:
+                print(f"  cours aberrants retirés : {removed}")
+            pairs_out[code] = {"label": info["label"], "ticker": info["ticker"], **stats}
+        except Exception as exc:  # noqa: BLE001
+            print(f"  ÉCHEC : {exc}")
+            failures.append(code)
+            if code in previous_pairs:  # on garde les anciennes données plutôt que de tout perdre
+                pairs_out[code] = previous_pairs[code]
 
-    if not pairs or len(failures) == len(PAIRS):
-        sys.exit("Aucune paire n'a pu être mise à jour.")
+    if not pairs_out:
+        print("Aucune donnée disponible, rien n'est écrit.")
+        return 1
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-               "source": "Yahoo Finance", "pairs": pairs}
-    OUT.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-                   encoding="utf-8")
-    print(f"Écrit : {OUT}")
+    payload = {"source": "Yahoo Finance", "pairs": pairs_out}
+    old_payload = {k: v for k, v in previous.items() if k != "generated"}
+    if old_payload == payload:
+        print("Aucun changement dans les données.")
+    else:
+        payload["generated"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        OUT.parent.mkdir(parents=True, exist_ok=True)
+        OUT.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                       encoding="utf-8")
+        print(f"Écrit : {OUT}")
+
     if failures:
-        print("Paires non mises à jour :", ", ".join(failures), file=sys.stderr)
+        print(f"Paires en échec : {', '.join(failures)}")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
