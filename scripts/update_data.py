@@ -136,6 +136,20 @@ def drop_incomplete(groups: pd.Series, close: pd.Series, kind: str) -> pd.Series
     return groups[[k not in keys_to_drop for k in groups.index]]
 
 
+def week_key(ts: pd.Timestamp):
+    """(année, N) où la semaine est celle dont le lundi est le Nème lundi de l'année."""
+    monday = ts - pd.Timedelta(days=int(ts.dayofweek))
+    return (monday.year, (monday.dayofyear - 1) // 7 + 1)
+
+
+def drop_incomplete_weeks(weeks: pd.Series, close: pd.Series) -> pd.Series:
+    drop = {week_key(close.index[0])}
+    last = close.index[-1]
+    if week_key(last + pd.offsets.BDay(1)) == week_key(last):
+        drop.add(week_key(last))
+    return weeks[[k not in drop for k in weeks.index]]
+
+
 def compute_pair(close: pd.Series) -> dict:
     ret = close.pct_change().dropna() * 100
     df = pd.DataFrame({"ret": ret})
@@ -182,6 +196,39 @@ def compute_pair(close: pd.Series) -> dict:
     for d in range(5):
         weekday.append({"key": d + 1, "label": WEEKDAYS[d], **stat_block(df.loc[df["wd"] == d, "ret"])})
 
+    # ---- Par semaine de l'année (Nème lundi) et Nème jour de la semaine -------- #
+    # Le Nème lundi de l'année tombe toujours entre le jour 7N-6 et 7N de l'année.
+    # Idem pour le Nème mardi, mercredi, etc. : N = (jour de l'année - 1) // 7 + 1.
+    df["nth"] = (df.index.dayofyear - 1) // 7 + 1
+    monday = df.index - pd.to_timedelta(df.index.dayofweek, unit="D")
+    df["wk_year"] = np.asarray(monday.year)
+    df["wk_n"] = np.asarray((monday.dayofyear - 1) // 7 + 1)
+    wk_series = drop_incomplete_weeks(df.groupby(["wk_year", "wk_n"])["ret"].apply(compound), close)
+
+    week_of_year = []
+    for n in range(1, 54):
+        sub = df[df["nth"] == n]
+        if sub.empty:
+            continue
+        wvals = wk_series[wk_series.index.get_level_values("wk_n") == n]
+        md = [(d.month, d.day) for d in sub.index]
+        lo, hi = min(md), max(md)
+        days = [{"weekday": d + 1, **stat_block(sub.loc[sub["wd"] == d, "ret"])} for d in range(5)]
+        week_of_year.append({"key": n, "from": f"{lo[0]:02d}-{lo[1]:02d}", "to": f"{hi[0]:02d}-{hi[1]:02d}",
+                             **stat_block(wvals), "days": days})
+
+    # ---- Calendrier : combien de lundis, mardis... par année -------------------- #
+    partial_by_year = {y["year"]: y["partial"] for y in yearly}
+    year_calendar = []
+    for y in range(first_year, last_year + 1):
+        bdays = pd.bdate_range(f"{y}-01-01", f"{y}-12-31")
+        year_calendar.append({
+            "year": y,
+            "counts": [int((bdays.dayofweek == d).sum()) for d in range(5)],
+            "trading_days": int((close.index.year == y).sum()),
+            "partial": bool(partial_by_year.get(y, False)),
+        })
+
     start, end = close.index[0], close.index[-1]
     return {
         "start": start.strftime("%Y-%m-%d"),
@@ -195,6 +242,8 @@ def compute_pair(close: pd.Series) -> dict:
         "monthly_matrix": matrix,
         "week_of_month": week_of_month,
         "weekday": weekday,
+        "week_of_year": week_of_year,
+        "year_calendar": year_calendar,
     }
 
 
