@@ -172,6 +172,11 @@
   .cal td, .cal th { text-align: center; }
   .cal td:first-child, .cal th:first-child { text-align: left; }
 
+  .heat.wide td:first-child, .heat.wide th:first-child { position: sticky; left: 0; background: var(--panel); z-index: 1; }
+  .heat.wide td.cell { min-width: 36px; height: 26px; font-size: 0.72rem; border-width: 1.5px; }
+  .heat.wide th { font-size: 0.72rem; }
+  .heat td.cell.selcol { box-shadow: inset 0 0 0 2px var(--ink); }
+
   /* Messages */
   .notice { background: var(--panel); border: 1.5px solid var(--line); border-radius: 14px; padding: 24px; }
   .notice h2 { margin: 0 0 8px; font-size: 1.15rem; }
@@ -541,11 +546,11 @@ function weekNumberOf(iso) {
   return Math.floor((doy - 1) / 7) + 1;
 }
 
-function heatCell(v, scale, thin, digits, title) {
+function heatCell(v, scale, thin, digits, title, extra = "") {
   if (v == null) return `<td class="cell empty"></td>`;
   const k = Math.min(1, Math.abs(v) / scale) * 80;
   const colour = v >= 0 ? "--up" : "--down";
-  return `<td class="cell${thin ? " thin" : ""}" style="background:color-mix(in srgb, var(${colour}) ${k.toFixed(0)}%, var(--panel))" title="${esc(title)}">${v < 0 ? "\u2212" : ""}${nf(v, digits)}</td>`;
+  return `<td class="cell${thin ? " thin" : ""}${extra ? " " + extra : ""}" style="background:color-mix(in srgb, var(${colour}) ${k.toFixed(0)}%, var(--panel))" title="${esc(title)}">${v < 0 ? "\u2212" : ""}${nf(v, digits)}</td>`;
 }
 const p90 = (arr) => { const a = arr.filter((v) => v != null).map(Math.abs).sort((x, y) => x - y); return a[Math.floor(a.length * 0.9)] || 1; };
 
@@ -610,6 +615,15 @@ function viewWeekYear(p) {
     <p class="note">Chaque jour est compté à part : le ${ordM(N)} mardi est le ${ordM(N)} mardi du calendrier, et ainsi de suite. Certaines années (quand le 1<sup>er</sup> janvier tombe en milieu de semaine), le ${ordM(N)} mercredi, jeudi ou vendredi tombe dans la semaine juste avant le ${ordM(N)} lundi.</p>
   </section>
 
+  <section class="panel">
+    <h2>Tableau des 53 semaines</h2>
+    <p class="lede">Pour chaque semaine de l'année, de la première à la dernière : ce que fait habituellement la paire, en comparant la même semaine d'une année à l'autre.</p>
+    ${statsTable(rows.map((r) => ({ ...r, label: "Semaine " + r.key, range: fmtMD(r.from) + " – " + fmtMD(r.to) })), "Semaine", "range", 2)}
+    ${reading(rows.map((r) => ({ ...r, label: "Semaine " + r.key })), "Semaine")}
+  </section>
+
+  ${weekHeatmap(p, N)}
+
   <section class="panel heat">
     <h2>Toutes les semaines, jour par jour</h2>
     <p class="lede">Chaque case est la variation moyenne (en %) du N<sup>e</sup> lundi, mardi, etc. de l'année, et la dernière colonne la variation de la semaine entière. Cliquez sur une ligne pour l'ouvrir. Les cases pâles ont moins de ${THIN} observations.</p>
@@ -619,6 +633,22 @@ function viewWeekYear(p) {
   </section>
 
   ${calendarPanel(p)}`;
+}
+
+function weekHeatmap(p, N) {
+  const mat = p.week_matrix;
+  if (!mat) return "";
+  const years = Object.keys(mat).sort((a, b) => b - a);
+  if (!years.length) return "";
+  const scale = p90(years.flatMap((y) => mat[y]));
+  const head = Array.from({ length: 53 }, (_, i) => `<th scope="col"${i + 1 === N ? ' style="color:var(--ink);font-weight:700"' : ""}>${i + 1}</th>`).join("");
+  const body = years.map((y) => `<tr><td>${y}</td>${mat[y].map((v, i) => heatCell(v, scale, false, 1, `Semaine ${i + 1} de ${y} : ${pct(v)}`, i + 1 === N ? "selcol" : "")).join("")}</tr>`).join("");
+  return `<section class="panel heat wide">
+    <h2>Semaine par semaine, année après année</h2>
+    <p class="lede">Chaque case est la variation (en %) d'une semaine précise de l'année. Une semaine est régulière quand sa colonne garde la même couleur d'une année à l'autre. La colonne de la semaine ${N} est encadrée. Faites défiler vers la droite pour voir toutes les semaines.</p>
+    <div class="tablewrap"><table><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table></div>
+    <div class="legend"><span>Baisse</span><span class="sw d"></span><span class="sw u"></span><span>Hausse</span><span>(couleur maximale à partir de ${nf(scale, 1)}${NBSP}%)</span></div>
+  </section>`;
 }
 
 function calendarPanel(p) {
