@@ -217,6 +217,10 @@ def compute_pair(close: pd.Series) -> dict:
         week_of_year.append({"key": n, "from": f"{lo[0]:02d}-{lo[1]:02d}", "to": f"{hi[0]:02d}-{hi[1]:02d}",
                              **stat_block(wvals), "days": days})
 
+    week_matrix = {}
+    for (wy, wn), value in wk_series.items():
+        week_matrix.setdefault(str(wy), [None] * 53)[int(wn) - 1] = r(value, 2)
+
     # ---- Calendrier : combien de lundis, mardis... par année -------------------- #
     partial_by_year = {y["year"]: y["partial"] for y in yearly}
     year_calendar = []
@@ -243,6 +247,7 @@ def compute_pair(close: pd.Series) -> dict:
         "week_of_month": week_of_month,
         "weekday": weekday,
         "week_of_year": week_of_year,
+        "week_matrix": week_matrix,
         "year_calendar": year_calendar,
     }
 
