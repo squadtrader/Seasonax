@@ -150,6 +150,28 @@
   .legend .sw.u { background: linear-gradient(90deg, var(--panel), color-mix(in srgb, var(--up) 80%, var(--panel))); }
   .legend .sw { border: 1px solid var(--line); }
 
+  /* Semaine de l'année */
+  .wk-head { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; align-items: flex-start; }
+  .wk-nav { display: flex; gap: 8px; align-items: center; }
+  .wk-nav button, .wk-nav select { font: 600 0.95rem var(--font); padding: 8px 12px; border: 1.5px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; cursor: pointer; }
+  .wk-nav button:hover, .wk-nav select:hover { border-color: var(--ink); }
+  .plot .col[data-week] { cursor: pointer; border-radius: 4px; }
+  .plot .col[data-week]:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+  .plot .col.sel { background: color-mix(in srgb, var(--ink) 11%, transparent); }
+  .heat td.cell.thin { opacity: 0.5; }
+  .heat tr[data-week] { cursor: pointer; }
+  .heat tr[data-week]:hover td:first-child { color: var(--ink); }
+  .heat tr.selrow td:first-child { color: var(--ink); font-weight: 700; }
+  .heat td:first-child { white-space: nowrap; }
+  .heat td.total { border-left: 8px solid var(--panel); }
+  .mdr { color: var(--muted); font-size: 0.85em; margin-left: 6px; font-weight: 400; }
+  .note { color: var(--muted); font-size: 0.85rem; margin: 14px 0 0; max-width: 75ch; }
+  details.panel > summary { cursor: pointer; font-weight: 700; font-size: 1.15rem; letter-spacing: -0.01em; }
+  details.panel[open] > summary { margin-bottom: 12px; }
+  td.hl { font-weight: 700; color: var(--ink); }
+  .cal td, .cal th { text-align: center; }
+  .cal td:first-child, .cal th:first-child { text-align: left; }
+
   /* Messages */
   .notice { background: var(--panel); border: 1.5px solid var(--line); border-radius: 14px; padding: 24px; }
   .notice h2 { margin: 0 0 8px; font-size: 1.15rem; }
@@ -206,6 +228,7 @@ const TABS = [
   { id: "annee",   label: "Par année" },
   { id: "mois",    label: "Par mois" },
   { id: "semaine", label: "Par semaine du mois" },
+  { id: "semainean", label: "Par semaine de l'année" },
   { id: "jour",    label: "Par jour de la semaine" },
 ];
 const METRICS = [
@@ -216,7 +239,7 @@ const MONTH_SHORT = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août"
 const WEEKDAY_SHORT = ["Lun", "Mar", "Mer", "Jeu", "Ven"];
 const THIN = 15; // en dessous de ce nombre d'observations, on signale un échantillon faible
 
-const state = { data: null, pair: null, tab: "annee", metric: "mean" };
+const state = { data: null, pair: null, tab: "annee", metric: "mean", week: null };
 const $ = (id) => document.getElementById(id);
 
 /* ---------- Utilitaires d'affichage ---------- */
@@ -287,9 +310,10 @@ async function load() {
   const codes = Object.keys(state.data.pairs);
   if (!codes.length) { showEmpty(new Error("fichier vide")); return; }
 
-  const [h1, h2] = location.hash.replace("#", "").split("/");
+  const [h1, h2, h3] = location.hash.replace("#", "").split("/");
   state.pair = codes.includes(h1) ? h1 : codes[0];
   if (TABS.some((t) => t.id === h2)) state.tab = h2;
+  if (+h3 >= 1 && +h3 <= 53) state.week = +h3;
 
   $("controls").hidden = false;
   $("source").textContent = "Source des cours : " + state.data.source + " (gratuite, non officielle : de petits trous sont possibles).";
@@ -347,7 +371,7 @@ function renderMetric() {
 /* ---------- Rendu principal ---------- */
 function render() {
   const p = state.data.pairs[state.pair];
-  history.replaceState(null, "", "#" + state.pair + "/" + state.tab);
+  history.replaceState(null, "", "#" + state.pair + "/" + state.tab + (state.tab === "semainean" && state.week ? "/" + state.week : ""));
   renderMetric();
 
   $("fresh").innerHTML = `Données jusqu'au <strong>${fmtDate(p.end)}</strong>`;
@@ -357,12 +381,12 @@ function render() {
     <div><dt>Jours de bourse</dt><dd>${fmtInt(p.days)}</dd></div>
     <div><dt>Dernier cours</dt><dd>${nf(p.last_close, p.last_close > 20 ? 3 : 5)}</dd></div>`;
 
-  const views = { annee: viewYear, mois: viewMonth, semaine: viewWeek, jour: viewDay };
+  const views = { annee: viewYear, mois: viewMonth, semaine: viewWeek, semainean: viewWeekYear, jour: viewDay };
   $("view").innerHTML = views[state.tab](p);
 }
 
 /* ---------- Graphique en barres ---------- */
-function chart(items, { title, showValues = true, digits = 2 } = {}) {
+function chart(items, { title, showValues = true, digits = 2, clickable = false, sparse = 0 } = {}) {
   const vals = items.map((i) => i.value).filter((v) => v != null);
   const maxPos = Math.max(0, ...vals);
   const maxNeg = Math.max(0, ...vals.map((v) => -v));
@@ -371,18 +395,19 @@ function chart(items, { title, showValues = true, digits = 2 } = {}) {
   const dense = items.length > 14;
 
   const cols = items.map((i) => {
-    if (i.value == null) return `<div class="col"></div>`;
+    const attrs = `class="col${i.selected ? " sel" : ""}"${clickable && i.key != null ? ` data-week="${i.key}"` : ""}`;
+    if (i.value == null) return `<div ${attrs}></div>`;
     const h = (Math.abs(i.value) / range) * 100;
     const top = i.value >= 0 ? zero - h : zero;
     const c = cls(i.value) || "up";
     const label = showValues && !dense
       ? `<span class="val ${c}" style="${i.value >= 0 ? `bottom:calc(${100 - top}% + 3px)` : `top:calc(${top + h}% + 3px)`}">${pct(i.value, digits)}</span>`
       : "";
-    return `<div class="col" title="${esc(i.title)}"><span class="bar ${c}${i.dim ? " dim" : ""}" style="top:${top}%;height:${h}%"></span>${label}</div>`;
+    return `<div ${attrs} title="${esc(i.title)}"><span class="bar ${c}${i.dim ? " dim" : ""}" style="top:${top}%;height:${h}%"></span>${label}</div>`;
   }).join("");
 
-  const xl = items.map((i) => `<span>${esc(i.label)}${i.sub ? `<small>${esc(i.sub)}</small>` : ""}</span>`).join("");
-  return `<div class="chart${dense ? " dense" : ""}" role="img" aria-label="${esc(title)}">
+  const xl = items.map((i, idx) => (sparse && idx % sparse) ? "<span></span>" : `<span>${esc(i.label)}${i.sub ? `<small>${esc(i.sub)}</small>` : ""}</span>`).join("");
+  return `<div class="chart${dense ? " dense" : ""}" role="${clickable ? "group" : "img"}" aria-label="${esc(title)}">
     <div class="plot"><div class="zero" style="top:${zero}%"></div><div class="cols">${cols}</div></div>
     <div class="xlabels">${xl}</div></div>`;
 }
@@ -501,6 +526,135 @@ function viewDay(p) {
   </section>
   <section class="panel">${statsTable(rows, "Jour", null, 3)}</section>`;
 }
+
+
+/* ---------- Semaine de l'année (Nème lundi, mardi, mercredi... de l'année) ---------- */
+const ordM = (n) => (n === 1 ? "1er" : n + "e");   // 1er lundi, 10e lundi
+const ordF = (n) => (n === 1 ? "1re" : n + "e");   // 1re semaine, 10e semaine
+const fmtMD = (md) => { const [m, d] = md.split("-").map(Number); return (d === 1 ? "1er" : d) + " " + MONTH_NAMES[m - 1].toLowerCase(); };
+const rangeText = (w) => `entre le ${fmtMD(w.from)} et le ${fmtMD(w.to)}`;
+
+function weekNumberOf(iso) {
+  const d = new Date(iso + "T00:00:00Z");
+  const monday = new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 864e5);
+  const doy = Math.round((monday - Date.UTC(monday.getUTCFullYear(), 0, 0)) / 864e5);
+  return Math.floor((doy - 1) / 7) + 1;
+}
+
+function heatCell(v, scale, thin, digits, title) {
+  if (v == null) return `<td class="cell empty"></td>`;
+  const k = Math.min(1, Math.abs(v) / scale) * 80;
+  const colour = v >= 0 ? "--up" : "--down";
+  return `<td class="cell${thin ? " thin" : ""}" style="background:color-mix(in srgb, var(${colour}) ${k.toFixed(0)}%, var(--panel))" title="${esc(title)}">${v < 0 ? "\u2212" : ""}${nf(v, digits)}</td>`;
+}
+const p90 = (arr) => { const a = arr.filter((v) => v != null).map(Math.abs).sort((x, y) => x - y); return a[Math.floor(a.length * 0.9)] || 1; };
+
+function viewWeekYear(p) {
+  const rows = p.week_of_year;
+  if (!rows || !rows.length) {
+    return `<div class="notice"><h2>Cette vue a besoin de nouvelles données</h2>
+      <p>Remplacez <code>scripts/update_data.py</code> par la dernière version, puis relancez « Mise à jour des données » (onglet Actions, puis Run workflow).</p></div>`;
+  }
+  const keys = rows.map((r) => r.key);
+  if (!keys.includes(state.week)) { const cur = weekNumberOf(p.end); state.week = keys.includes(cur) ? cur : keys[0]; }
+  const N = state.week;
+  const sel = rows.find((r) => r.key === N);
+  const m = state.metric;
+
+  /* 1. Toutes les semaines de l'année */
+  const overview = rows.map((r) => ({
+    key: r.key, label: String(r.key), selected: r.key === N, value: r[m], dim: r.n < THIN,
+    title: `Semaine ${r.key} (lundi ${rangeText(r)}) : ${pct(r[m])} · ${r.n} obs.`,
+  }));
+
+  /* 2. Détail de la semaine choisie */
+  const dayItems = sel.days.map((d, i) => ({ label: WEEKDAY_SHORT[i], sub: ordM(N), value: d[m], title: `${ordM(N)} ${WEEKDAY_NAMES[i].toLowerCase()} : ${pct(d[m], 3)} · ${d.n} obs.` }));
+  const tableRows = [
+    { label: `Semaine ${N} entière`, range: "lundi à vendredi", ...sel },
+    ...sel.days.map((d, i) => ({ ...d, label: `${ordM(N)} ${WEEKDAY_NAMES[i].toLowerCase()}`, range: null })),
+  ];
+  const options = rows.map((r) => `<option value="${r.key}"${r.key === N ? " selected" : ""}>Semaine ${r.key} · ${fmtMD(r.from)} au ${fmtMD(r.to)}</option>`).join("");
+  const thinWarn = sel.n < THIN ? ` <strong>Attention : seulement ${sel.n} observations, ce résultat peut être dû au hasard.</strong>` : "";
+
+  /* 3. Tableau croisé semaine × jour */
+  const dScale = p90(rows.flatMap((r) => r.days.map((d) => d.mean)));
+  const wScale = p90(rows.map((r) => r.mean));
+  const matrixBody = rows.map((r) => `<tr data-week="${r.key}" class="${r.key === N ? "selrow" : ""}">
+      <td>S${r.key}<span class="mdr">${fmtMD(r.from)} – ${fmtMD(r.to)}</span></td>
+      ${r.days.map((d) => heatCell(d.mean, dScale, d.n < THIN, 2, `${ordM(r.key)} ${WEEKDAY_NAMES[d.weekday - 1].toLowerCase()} : ${pct(d.mean, 3)} · haussier ${plain(d.pct_up, 0)} · ${d.n} obs.`)).join("")}
+      ${heatCell(r.mean, wScale, r.n < THIN, 2, `Semaine ${r.key} : ${pct(r.mean)} · haussière ${plain(r.pct_up, 0)} · ${r.n} obs.`).replace("<td ", '<td data-total ').replace('class="cell', 'class="total cell')}
+      <td style="color:var(--muted)">${r.n}</td></tr>`).join("");
+
+  return `<section class="panel">
+    <h2>Les 53 semaines de l'année</h2>
+    <p class="lede">La semaine N est celle qui commence le N<sup>e</sup> lundi de l'année. Chaque barre regroupe la même semaine de toutes les années. Cliquez sur une barre pour voir le détail jour par jour.</p>
+    ${chart(overview, { title: "Variation par semaine de l'année de " + p.label, clickable: true, sparse: 4 })}
+    <p class="note">Les barres pâles ont moins de ${THIN} observations : elles sont peu fiables (c'est le cas de la semaine 53, qui n'existe que certaines années).</p>
+  </section>
+
+  <section class="panel" id="weekDetail">
+    <div class="wk-head">
+      <div>
+        <h2>Semaine ${N} : le ${ordM(N)} lundi de l'année</h2>
+        <p class="lede">Le ${ordM(N)} lundi tombe ${rangeText(sel)}, selon les années.</p>
+      </div>
+      <div class="wk-nav">
+        <button type="button" data-weekstep="-1" aria-label="Semaine précédente">←</button>
+        <select id="weekSel" aria-label="Choisir la semaine">${options}</select>
+        <button type="button" data-weekstep="1" aria-label="Semaine suivante">→</button>
+      </div>
+    </div>
+    ${chart(dayItems, { title: `Variation par jour de la semaine ${N} de ${p.label}`, digits: 3 })}
+    <div class="reading"><p>Sur ${sel.n} années, la semaine ${N} a été haussière ${plain(sel.pct_up, 0)} du temps (variation moyenne ${pct(sel.mean)}, médiane ${pct(sel.median)}).${thinWarn}</p></div>
+    <div style="margin-top:16px">${statsTable(tableRows, "Période", "range", 3)}</div>
+    <p class="note">Chaque jour est compté à part : le ${ordM(N)} mardi est le ${ordM(N)} mardi du calendrier, et ainsi de suite. Certaines années (quand le 1<sup>er</sup> janvier tombe en milieu de semaine), le ${ordM(N)} mercredi, jeudi ou vendredi tombe dans la semaine juste avant le ${ordM(N)} lundi.</p>
+  </section>
+
+  <section class="panel heat">
+    <h2>Toutes les semaines, jour par jour</h2>
+    <p class="lede">Chaque case est la variation moyenne (en %) du N<sup>e</sup> lundi, mardi, etc. de l'année, et la dernière colonne la variation de la semaine entière. Cliquez sur une ligne pour l'ouvrir. Les cases pâles ont moins de ${THIN} observations.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th scope="col">Semaine</th>${WEEKDAY_SHORT.map((d) => `<th scope="col">${d}</th>`).join("")}<th scope="col" style="padding-left:8px">Semaine</th><th scope="col">Obs.</th></tr></thead>
+      <tbody>${matrixBody}</tbody></table></div>
+  </section>
+
+  ${calendarPanel(p)}`;
+}
+
+function calendarPanel(p) {
+  const cal = p.year_calendar;
+  if (!cal || !cal.length) return "";
+  const body = [...cal].reverse().map((c) => `<tr><td>${c.year}${c.partial ? '<span class="tag">données partielles</span>' : ""}</td>
+    ${c.counts.map((n) => `<td${n === 53 ? ' class="hl"' : ""}>${n}</td>`).join("")}<td>${fmtInt(c.trading_days)}</td></tr>`).join("");
+  return `<details class="panel cal"><summary>Combien de lundis, mardis… y a-t-il dans une année ?</summary>
+    <p class="lede">Une année compte 52 semaines plus 1 jour (365 jours), ou plus 2 jours (année bissextile). Ces jours en plus reviennent 53 fois au lieu de 52 : c'est pourquoi il y a 52 ou 53 lundis, et pourquoi la semaine 53 a si peu d'observations. En gras : les jours qui reviennent 53 fois cette année-là.</p>
+    <div class="tablewrap"><table style="max-width:560px">
+      <thead><tr><th scope="col">Année</th>${WEEKDAY_SHORT.map((d) => `<th scope="col">${d}</th>`).join("")}<th scope="col">Jours de bourse</th></tr></thead>
+      <tbody>${body}</tbody></table></div>
+  </details>`;
+}
+
+function moveWeek(delta) {
+  const keys = state.data.pairs[state.pair].week_of_year.map((r) => r.key);
+  state.week = keys[(keys.indexOf(state.week) + delta + keys.length) % keys.length];
+  render();
+  const b = document.querySelector(`[data-weekstep="${delta}"]`);
+  if (b) b.focus();
+}
+
+$("view").addEventListener("click", (e) => {
+  const step = e.target.closest("[data-weekstep]");
+  if (step) { moveWeek(+step.dataset.weekstep); return; }
+  const w = e.target.closest("[data-week]");
+  if (w) {
+    state.week = +w.dataset.week;
+    render();
+    if (w.tagName === "TR") $("weekDetail").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+});
+$("view").addEventListener("change", (e) => {
+  if (e.target.id === "weekSel") { state.week = +e.target.value; render(); $("weekSel").focus(); }
+});
 
 /* ---------- Carte de chaleur année × mois ---------- */
 function heatmap(p) {
